@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>خزنة كلمات السر</title>
+<script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
+body{background:linear-gradient(180deg,#0A2E23 0%,#03110C 100%);color:#F5EFE0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.wrap{width:100%;max-width:480px}
+.card{background:rgba(255,255,255,.06);border:1px solid rgba(212,175,55,.4);border-radius:20px;padding:22px}
+.icon{width:80px;height:80px;border-radius:50%;background:rgba(212,175,55,.15);border:2px solid #D4AF37;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 14px}
+h1,h2{text-align:center;margin-bottom:10px;font-size:22px}
+.div{text-align:center;color:#D4AF37;margin:10px 0;font-size:14px}
+input,button{width:100%;padding:13px;border-radius:14px;font-size:16px;margin-top:10px;font-family:inherit}
+input{background:rgba(255,255,255,.1);border:1px solid rgba(212,175,55,.4);color:#F5EFE0;text-align:center;outline:none;letter-spacing:8px}
+button{background:linear-gradient(90deg,#1B7A5A,#2A9D77);color:#F5EFE0;border:1px solid #D4AF37;font-weight:bold;cursor:pointer}
+.hide{display:none!important}
+.acc{background:rgba(255,255,255,.06);border:1px solid rgba(212,175,55,.4);border-radius:14px;padding:14px;margin-top:10px;cursor:pointer}
+.acc-t{font-weight:bold;display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.det{margin-top:12px;padding-top:12px;border-top:1px solid rgba(212,175,55,.3)}
+.lbl{color:#F0D77B;font-size:12px;margin-top:10px;font-weight:bold}
+.val{font-size:15px;word-break:break-all;margin-top:6px;color:#FFF;background:rgba(0,0,0,.3);padding:10px 12px;border-radius:10px;border:1px solid rgba(212,175,55,.3);direction:ltr;text-align:left;font-family:'Courier New',monospace}
+.fr{display:flex;align-items:stretch;gap:6px;margin-top:6px}
+.fr .val{flex:1;margin-top:0;min-width:0}
+.bc{background:rgba(212,175,55,.2);border:1px solid rgba(212,175,55,.5);color:#F5EFE0;padding:0 12px;border-radius:10px;font-size:15px;cursor:pointer;min-width:46px;margin:0;font-weight:normal}
+.sh{color:#F0D77B;font-size:13px;font-weight:bold;margin:16px 4px 8px;text-align:right;border-right:3px solid #D4AF37;padding-right:8px}
+.ni{background:rgba(255,255,255,.06);border:1px solid rgba(212,175,55,.4);border-radius:14px;padding:12px 14px;margin-top:10px}
+.nh{display:flex;justify-content:space-between;align-items:center;font-weight:bold;color:#F0D77B;font-size:13px;margin-bottom:8px;gap:8px}
+.nb{font-size:14px;color:#FFF;line-height:1.7;word-break:break-word;white-space:pre-wrap;background:rgba(0,0,0,.25);padding:10px 12px;border-radius:10px;border:1px solid rgba(212,175,55,.25)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1B7A5A;color:#F5EFE0;padding:10px 20px;border-radius:12px;border:1px solid #D4AF37;opacity:0;transition:.3s;z-index:99;pointer-events:none}
+.toast.show{opacity:1}
+.err{color:#EF4444;text-align:center;margin-top:10px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div id="pinScreen" class="card">
+<div class="icon">🔒</div>
+<h1>خزنة كلمات السر</h1>
+<div class="div">✦ ───── ✦</div>
+<p style="text-align:center;color:#F0D77B;font-size:13px;margin-bottom:8px">أدخل رمز الحماية لعرض حسابك</p>
+<input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="• • • • • •">
+<button id="btnUnlock">↪ دخول</button>
+<p id="pinError" class="err hide">❌ رمز خاطئ</p>
+</div>
+<div id="vaultScreen" class="card hide">
+<div class="icon">🔐</div>
+<h2>بياناتك</h2>
+<div class="div">✦ ───── ✦</div>
+<div id="list"></div>
+<button id="btnLock" style="margin-top:18px">🔒 قفل</button>
+</div>
+<div id="errScreen" class="card hide">
+<div class="icon">⚠️</div>
+<h2>خطأ</h2>
+<p id="errMsg" style="text-align:center;margin-top:10px"></p>
+</div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+const API='https://passwordlock-api.gmcishak.workers.dev';
+let rawCode=new URLSearchParams(location.search).get('code')||(location.pathname.split('/').filter(Boolean).pop()||'');
+if(rawCode.endsWith('.html')){rawCode=rawCode.replace('.html','')}
+if(rawCode==='index'||rawCode==='v'||rawCode===''){rawCode=''}
+const code=rawCode;
+let encData='',storedHash='',vaultData=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2000)}
+function show(id){['pinScreen','vaultScreen','errScreen'].forEach(s=>document.getElementById(s).classList.add('hide'));document.getElementById(id).classList.remove('hide')}
+function showErr(m){document.getElementById('errMsg').textContent=m;show('errScreen')}
+async function loadVault(){
+if(!code||code.length!==6){show('pinScreen');return}
+try{const r=await fetch(API+'/get?code='+encodeURIComponent(code));const d=await r.json();
+if(!d.success){showErr(d.error==='Vault not found'?'لم يتم العثور على الخزنة':'خطأ في جلب البيانات');return}
+encData=d.encrypted;storedHash=d.pin_hash;show('pinScreen')}catch(e){showErr('تعذّر الاتصال بالسيرفر')}}
+function sha256Hex(t){return CryptoJS.SHA256(t).toString(CryptoJS.enc.Hex)}
+function decryptVault(pin){
+const c=CryptoJS.enc.Base64.parse(encData);
+const salt=CryptoJS.lib.WordArray.create(c.words.slice(0,4),16);
+const iv=CryptoJS.lib.WordArray.create(c.words.slice(4,8),16);
+const ct=CryptoJS.lib.WordArray.create(c.words.slice(8),c.sigBytes-32);
+const key=CryptoJS.PBKDF2(pin,salt,{keySize:8,iterations:100000,hasher:CryptoJS.algo.SHA256});
+const dec=CryptoJS.AES.decrypt({ciphertext:ct},key,{iv:iv,mode:CryptoJS.mode.CBC,padding:CryptoJS.pad.Pkcs7});
+const txt=dec.toString(CryptoJS.enc.Utf8);
+if(!txt)throw new Error('decrypt failed');
+return JSON.parse(txt)}
+document.getElementById('btnUnlock').onclick=function(){
+if(!encData){toast('لا توجد بيانات محفوظة');return}
+const pin=document.getElementById('pinInput').value.trim();
+if(pin.length!==6){toast('أدخل 6 أرقام');return}
+if(sha256Hex(pin)!==storedHash){document.getElementById('pinError').classList.remove('hide');return}
+document.getElementById('pinError').classList.add('hide');
+try{const raw=decryptVault(pin);
+if(Array.isArray(raw)){vaultData={accounts:raw,notes:[]}}
+else{vaultData={accounts:Array.isArray(raw.accounts)?raw.accounts:[],notes:Array.isArray(raw.notes)?raw.notes:[]}}
+render();show('vaultScreen')}catch(e){toast('❌ فشل فك التشفير')}};
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function encA(s){return encodeURIComponent(String(s))}
+function decA(s){try{return decodeURIComponent(s)}catch(e){return s}}
+function copyText(t){if(!t||t==='(لا يوجد)'){toast('⚠️ لا يوجد نص للنسخ');return}
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>toast('✅ تم النسخ')).catch(()=>fb(t))}else{fb(t)}}
+function fb(t){try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);toast(ok?'✅ تم النسخ':'❌ فشل')}catch(e){toast('❌ فشل')}}
+function render(){
+const L=document.getElementById('list');L.innerHTML='';
+if(!vaultData){L.innerHTML='<p style="text-align:center;color:#F0D77B">لا توجد بيانات 🌿</p>';return}
+const a=vaultData.accounts||[],n=vaultData.notes||[];
+if(a.length===0&&n.length===0){L.innerHTML='<p style="text-align:center;color:#F0D77B">لا توجد بيانات 🌿</p>';return}
+if(a.length>0){const sh=document.createElement('div');sh.className='sh';sh.textContent='🔑 الحسابات ('+a.length+')';L.appendChild(sh);
+a.forEach(function(x,i){const e=(x.email&&x.email.length>0)?x.email:'(لا يوجد)';const p=(x.password&&x.password.length>0)?x.password:'(لا يوجد)';
+const d=document.createElement('div');d.className='acc';
+d.innerHTML='<div class="acc-t"><span>🔑 '+esc(x.name)+'</span><span>‹</span></div><div class="det hide" id="det-'+i+'"><div class="lbl">📧 البريد / الرقم</div><div class="fr"><div class="val">'+esc(e)+'</div><button class="bc" data-copy="'+encA(e)+'">📋</button></div><div class="lbl">🔒 كلمة السر</div><div class="fr"><div class="val" id="pwd-'+i+'" data-pwd="'+encA(p)+'">••••••••</div><button class="bc" data-target="pwd-'+i+'">👁</button><button class="bc" data-copy="'+encA(p)+'">📋</button></div></div>';
+d.querySelector('.acc-t').onclick=function(ev){ev.stopPropagation();document.getElementById('det-'+i).classList.toggle('hide')};
+L.appendChild(d)})}
+if(n.length>0){const sh=document.createElement('div');sh.className='sh';sh.textContent='📝 الملاحظات ('+n.length+')';L.appendChild(sh);
+n.forEach(function(x,i){const d=document.createElement('div');d.className='ni';
+d.innerHTML='<div class="nh"><span>📝 ملاحظة #'+(i+1)+'</span><button class="bc" data-copy="'+encA(x)+'">📋 نسخ</button></div><div class="nb">'+esc(x)+'</div>';
+L.appendChild(d)})}
+document.querySelectorAll('.bc').forEach(function(b){if(b.hasAttribute('data-copy')){b.onclick=function(ev){ev.stopPropagation();copyText(decA(b.getAttribute('data-copy')))}}});
+document.querySelectorAll('.bc').forEach(function(b){if(b.hasAttribute('data-target')){b.onclick=function(ev){ev.stopPropagation();const t=document.getElementById(b.getAttribute('data-target'));const r=decA(t.getAttribute('data-pwd'));if(t.textContent==='••••••••'){t.textContent=r||'(لا يوجد)';b.textContent='🙈'}else{t.textContent='••••••••';b.textContent='👁'}}}})}
+document.getElementById('btnLock').onclick=function(){document.getElementById('pinInput').value='';vaultData=null;show('pinScreen')};
+loadVault();
+</script>
+</body>
+  </html>
